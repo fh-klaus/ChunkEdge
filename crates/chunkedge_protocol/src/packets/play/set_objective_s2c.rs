@@ -35,6 +35,10 @@ pub enum ObjectiveRenderType {
     /// Display the value as hearts.
     Hearts,
 }
+
+#[derive(Component, Clone, PartialEq, Debug, Default)]
+pub struct ObjectiveNumberFormat(pub Option<NumberFormat<'static>>);
+
 #[derive(Clone, PartialEq, Debug, Encode, Decode, Component)]
 pub enum NumberFormat<'a> {
     Blank,
