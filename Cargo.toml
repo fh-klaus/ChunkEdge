@@ -9,7 +9,7 @@ readme = "README.md"
 license.workspace = true
 keywords = ["minecraft", "gamedev", "server", "ecs"]
 categories = ["game-engines"]
-include = ["/src", "/benches", "/examples", "/README.md", "/LICENSE.txt"]
+include = ["/src", "/benches", "/examples", "/docs", "/README.md", "/LICENSE.txt"]
 
 [lints]
 workspace = true
@@ -115,7 +115,7 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/ChunkEdge/ChunkEdge"
-documentation = "https://docs.rs/chunkedge/"
+documentation = "https://docs.chunkedge.com"
 license = "MIT"
 
 [workspace.dependencies]
