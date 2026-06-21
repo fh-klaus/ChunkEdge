@@ -12,9 +12,14 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-valence_server.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_hierarchy.workspace = true
-derive_more.workspace = true
+derive_more = {workspace = true, features = [
+    "deref",
+    "deref_mut",
+] }
 rustc-hash.workspace = true
+valence_binary.workspace = true
+valence_generated.workspace = true
+valence_server.workspace = true

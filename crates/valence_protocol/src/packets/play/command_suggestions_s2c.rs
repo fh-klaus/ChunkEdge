@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use valence_text::Text;
+use valence_binary::{Decode, Encode, TextComponent, VarInt};
 
-use crate::{Decode, Encode, Packet, VarInt};
+use crate::Packet;
 
 #[derive(Clone, Debug, Encode, Decode, Packet)]
 pub struct CommandSuggestionsS2c<'a> {
@@ -15,5 +15,5 @@ pub struct CommandSuggestionsS2c<'a> {
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]
 pub struct CommandSuggestionsMatch<'a> {
     pub suggested_match: &'a str,
-    pub tooltip: Option<Cow<'a, Text>>,
+    pub tooltip: Option<Cow<'a, TextComponent>>,
 }

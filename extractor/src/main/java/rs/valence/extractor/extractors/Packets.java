@@ -4,14 +4,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.netty.buffer.ByteBuf;
-import net.minecraft.network.NetworkState;
+import java.io.IOException;
+import net.minecraft.network.state.NetworkState;
 import net.minecraft.network.listener.PacketListener;
 import net.minecraft.network.state.*;
 import rs.valence.extractor.Main;
 
-import java.io.IOException;
-
 public class Packets implements Main.Extractor {
+
     @Override
     public String fileName() {
         return "packets.json";
@@ -34,12 +34,18 @@ public class Packets implements Main.Extractor {
         return packetsJson;
     }
 
-    private static <T extends PacketListener, B extends ByteBuf> void serializeFactory(NetworkState.Factory<T, B> factory, JsonArray json) {
-        factory.forEachPacketType((type, i) -> {
+    private static <
+        T extends PacketListener, B extends ByteBuf
+    > void serializeFactory(
+        NetworkState.Factory factory,
+        JsonArray json
+    ) {
+        var unboundFactory = factory.buildUnbound();
+        unboundFactory.forEachPacketType((type, i) -> {
             var packetJson = new JsonObject();
             packetJson.addProperty("name", type.id().getPath());
-            packetJson.addProperty("phase", factory.phase().getId());
-            packetJson.addProperty("side", factory.side().getName());
+            packetJson.addProperty("phase", unboundFactory.phase().getId());
+            packetJson.addProperty("side", unboundFactory.side().getName());
             packetJson.addProperty("id", i);
             json.add(packetJson);
         });

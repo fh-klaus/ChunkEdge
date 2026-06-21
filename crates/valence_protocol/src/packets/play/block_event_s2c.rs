@@ -1,5 +1,7 @@
+use valence_binary::{Decode, Encode};
+
 use crate::block::BlockKind;
-use crate::{BlockPos, Decode, Encode, Packet};
+use crate::{BlockPos, Packet};
 
 #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
 pub struct BlockEventS2c {

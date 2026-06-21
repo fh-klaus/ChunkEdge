@@ -14,12 +14,14 @@ use bevy_hierarchy::{Children, HierarchyPlugin, Parent};
 use derive_more::{Deref, DerefMut};
 use event::{handle_advancement_tab_change, AdvancementTabChangeEvent};
 use rustc_hash::FxHashMap;
+use valence_binary::{Encode, RawBytes};
+use valence_generated::packet_id;
 use valence_server::client::{Client, FlushPacketsSet, SpawnClientsSet};
 use valence_server::protocol::packets::play::{
-    advancement_update_s2c as packet, SelectAdvancementTabS2c,
+    update_advancements_s2c as packet, SelectAdvancementsTabS2c,
 };
 use valence_server::protocol::{
-    anyhow, packet_id, Encode, Packet, PacketSide, PacketState, RawBytes, VarInt, WritePacket,
+    anyhow, IntoTextComponent, Packet, PacketSide, PacketState, VarInt, WritePacket,
 };
 use valence_server::{Ident, ItemStack, Text};
 
@@ -93,7 +95,7 @@ impl UpdateAdvancementCachedBytesQuery<'_, '_> {
         a_identifier: &Advancement,
         a_requirements: &AdvancementRequirements,
         a_display: Option<&AdvancementDisplay>,
-        a_children: Option<&Children>,
+        _a_children: Option<&Children>,
         a_parent: Option<&Parent>,
         w: impl Write,
     ) -> anyhow::Result<()> {
@@ -105,7 +107,6 @@ impl UpdateAdvancementCachedBytesQuery<'_, '_> {
         let mut pkt = packet::Advancement {
             parent_id: None,
             display_data: None,
-            criteria: vec![],
             requirements: vec![],
             sends_telemetry_data: false,
         };
@@ -117,8 +118,8 @@ impl UpdateAdvancementCachedBytesQuery<'_, '_> {
 
         if let Some(a_display) = a_display {
             pkt.display_data = Some(packet::AdvancementDisplay {
-                title: Cow::Borrowed(&a_display.title),
-                description: Cow::Borrowed(&a_display.description),
+                title: (&a_display.title).into_cow_text_component(),
+                description: (&a_display.description).into_cow_text_component(),
                 icon: &a_display.icon,
                 frame_type: VarInt(a_display.frame_type as i32),
                 flags: a_display.flags(),
@@ -126,15 +127,6 @@ impl UpdateAdvancementCachedBytesQuery<'_, '_> {
                 x_coord: a_display.x_coord,
                 y_coord: a_display.y_coord,
             });
-        }
-
-        if let Some(a_children) = a_children {
-            for a_child in a_children {
-                let Ok(c_identifier) = criteria_query.get(*a_child) else {
-                    continue;
-                };
-                pkt.criteria.push((c_identifier.0.borrowed(), ()));
-            }
         }
 
         for requirements in &a_requirements.0 {
@@ -218,11 +210,12 @@ impl Encode for AdvancementUpdateEncodeS2c<'_, '_, '_> {
             ..
         } = &self.client_update;
 
-        let mut pkt = packet::GenericAdvancementUpdateS2c {
+        let mut pkt = packet::GenericUpdateAdvancementsS2c {
             reset: *reset,
             advancement_mapping: vec![],
             identifiers: vec![],
             progress_mapping: vec![],
+            show_advancements: false,
         };
 
         for new_advancement in new_advancements {
@@ -265,7 +258,7 @@ impl Encode for AdvancementUpdateEncodeS2c<'_, '_, '_> {
 }
 
 impl Packet for AdvancementUpdateEncodeS2c<'_, '_, '_> {
-    const ID: i32 = packet_id::ADVANCEMENT_UPDATE_S2C;
+    const ID: i32 = packet_id::PLAY_UPDATE_ADVANCEMENTS_S2C;
     const NAME: &'static str = "AdvancementUpdateEncodeS2c";
     const SIDE: PacketSide = PacketSide::Clientbound;
     const STATE: PacketState = PacketState::Play;
@@ -280,11 +273,11 @@ fn send_advancement_update_packet(
         match advancement_client_update.force_tab_update {
             ForceTabUpdate::None => {}
             ForceTabUpdate::First => {
-                client.write_packet(&SelectAdvancementTabS2c { identifier: None })
+                client.write_packet(&SelectAdvancementsTabS2c { identifier: None })
             }
             ForceTabUpdate::Spec(spec) => {
                 if let Ok(a_identifier) = update_single_query.advancement_id.get(spec) {
-                    client.write_packet(&SelectAdvancementTabS2c {
+                    client.write_packet(&SelectAdvancementsTabS2c {
                         identifier: Some(a_identifier.0.borrowed()),
                     });
                 }
@@ -410,6 +403,7 @@ pub struct AdvancementClientUpdate {
     /// Also with this flag, client will not show a toast for advancements,
     /// which are completed. When the packet is sent, turns to false
     pub reset: bool,
+    // TODO handle toasts
 }
 
 impl Default for AdvancementClientUpdate {

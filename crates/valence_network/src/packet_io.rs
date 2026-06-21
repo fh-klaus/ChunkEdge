@@ -10,10 +10,11 @@ use tokio::net::TcpStream;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tracing::{debug, warn};
-use valence_protocol::CompressionThreshold;
+use valence_binary::{Decode, Encode};
+use valence_protocol::{CompressionThreshold, Packet};
 use valence_server::client::{ClientBundleArgs, ClientConnection, ReceivedPacket};
 use valence_server::protocol::decode::PacketFrame;
-use valence_server::protocol::{Decode, Encode, Packet, PacketDecoder, PacketEncoder};
+use valence_server::protocol::{PacketDecoder, PacketEncoder};
 
 use crate::byte_channel::{byte_channel, ByteSender, TrySendError};
 use crate::{CleanupOnDrop, NewClientInfo};
@@ -59,6 +60,26 @@ impl PacketIo {
                 self.frame = frame;
 
                 return self.frame.decode();
+            }
+
+            self.dec.reserve(READ_BUF_SIZE);
+            let mut buf = self.dec.take_capacity();
+
+            if self.stream.read_buf(&mut buf).await? == 0 {
+                return Err(io::Error::from(ErrorKind::UnexpectedEof).into());
+            }
+
+            // This should always be an O(1) unsplit because we reserved space earlier and
+            // the call to `read_buf` shouldn't have grown the allocation.
+            self.dec.queue_bytes(buf);
+        }
+    }
+    pub(crate) async fn _try_recv_packet(&mut self) -> anyhow::Result<PacketFrame> {
+        loop {
+            if let Some(frame) = self.dec.try_next_packet()? {
+                self.frame = frame;
+
+                return Ok(self.frame.clone());
             }
 
             self.dec.reserve(READ_BUF_SIZE);
@@ -190,6 +211,16 @@ impl PacketIo {
             username: info.username,
             uuid: info.uuid,
             ip: info.ip,
+            // TODO: limit this by the server
+            view_distance: info.view_distance,
+            locale: info.locale,
+            chat_mode: info.chat_mode,
+            chat_colors: info.chat_colors,
+            displayed_skin_parts: info.displayed_skin_parts,
+            main_arm: info.main_arm,
+            enable_text_filtering: info.enable_text_filtering,
+            allow_server_listings: info.allow_server_listings,
+            particle_mode: info.particle_mode,
             properties: info.properties.0,
             conn: Box::new(RealClientConnection {
                 send: outgoing_sender,
@@ -220,7 +251,8 @@ impl ClientConnection for RealClientConnection {
         match self.send.try_send(bytes) {
             Ok(()) => Ok(()),
             Err(TrySendError::Full(_)) => bail!(
-                "reached configured outgoing limit of {} bytes",
+                "reached configured outgoing limit of {} bytes. If compression is disabled, \
+                 consider enabling it.",
                 self.send.limit()
             ),
             Err(TrySendError::Disconnected(_)) => bail!("client disconnected"),

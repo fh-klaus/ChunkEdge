@@ -12,7 +12,7 @@ use valence::entity::{EntityAnimations, EntityStatuses, OnGround, Velocity};
 use valence::interact_block::InteractBlockEvent;
 use valence::inventory::HeldItem;
 use valence::log::debug;
-use valence::math::Vec3Swizzles;
+use valence::math::{Aabb, Vec3Swizzles};
 use valence::nbt::{compound, List};
 use valence::prelude::*;
 use valence::scoreboard::*;
@@ -314,11 +314,11 @@ fn build_spawn_box(layer: &mut LayerBundle, pos: impl Into<BlockPos>, commands: 
             state: BlockState::OAK_WALL_SIGN.set(PropName::Rotation, PropValue::_3),
             nbt: Some(compound! {
                 "front_text" => compound! {
-                    "messages" => List::String(vec![
-                        "Capture".color(Color::YELLOW).bold().to_string(),
-                        "the".color(Color::YELLOW).bold().to_string(),
-                        "Flag!".color(Color::YELLOW).bold().to_string(),
-                        "Select a Team".color(Color::WHITE).italic().to_string(),
+                    "messages" => List::Compound(vec![
+                        "Capture".color(Color::YELLOW).bold().into(),
+                        "the".color(Color::YELLOW).bold().into(),
+                        "Flag!".color(Color::YELLOW).bold().into(),
+                        "Select a Team".color(Color::WHITE).italic().into(),
                     ])
                 },
             }),
@@ -331,11 +331,11 @@ fn build_spawn_box(layer: &mut LayerBundle, pos: impl Into<BlockPos>, commands: 
             state: BlockState::OAK_WALL_SIGN.set(PropName::Rotation, PropValue::_3),
             nbt: Some(compound! {
                 "front_text" => compound! {
-                    "messages" => List::String(vec![
-                        "".into_text().to_string(),
-                        ("Join ".bold().color(Color::WHITE) + Team::Red.team_text()).to_string(),
-                        "=>".bold().color(Color::WHITE).to_string(),
-                        "".into_text().to_string(),
+                    "messages" => List::Compound(vec![
+                        "".into_text().into(),
+                        ("Join ".bold().color(Color::WHITE) + Team::Red.team_text()).into(),
+                        "=>".bold().color(Color::WHITE).into(),
+                        "".into_text().into(),
                     ])
                 },
             }),
@@ -348,11 +348,11 @@ fn build_spawn_box(layer: &mut LayerBundle, pos: impl Into<BlockPos>, commands: 
             state: BlockState::OAK_WALL_SIGN.set(PropName::Rotation, PropValue::_3),
             nbt: Some(compound! {
                 "front_text" => compound! {
-                    "messages" => List::String(vec![
-                        "".into_text().to_string(),
-                        ("Join ".bold().color(Color::WHITE) + Team::Blue.team_text()).to_string(),
-                        "<=".bold().color(Color::WHITE).to_string(),
-                        "".into_text().to_string(),
+                    "messages" => List::Compound(vec![
+                        "".into_text().into(),
+                        ("Join ".bold().color(Color::WHITE) + Team::Blue.team_text()).into(),
+                        "<=".bold().color(Color::WHITE).into(),
+                        "".into_text().into(),
                     ])
                 },
             }),
@@ -491,7 +491,7 @@ fn digging(
                     let count = inv.slot(slot).count;
                     inv.set_slot_amount(slot, count + 1);
                 } else {
-                    let stack = ItemStack::new(kind, 1, None);
+                    let stack = ItemStack::new(kind, 1);
                     if let Some(empty_slot) = inv.first_empty_slot_in(9..45) {
                         inv.set_slot(empty_slot, stack);
                     } else {
@@ -504,14 +504,15 @@ fn digging(
 }
 
 fn place_blocks(
-    mut clients: Query<(&mut Inventory, &GameMode, &HeldItem)>,
+    mut clients: Query<(&mut Inventory, &GameMode, &HeldItem, &Hitbox)>,
     mut layers: Query<&mut ChunkLayer>,
+    globals: Res<CtfGlobals>,
     mut events: EventReader<InteractBlockEvent>,
 ) {
     let mut layer = layers.single_mut();
 
     for event in events.read() {
-        let Ok((mut inventory, game_mode, held)) = clients.get_mut(event.client) else {
+        let Ok((mut inventory, game_mode, held, hitbox)) = clients.get_mut(event.client) else {
             continue;
         };
         if event.hand != Hand::Main {
@@ -529,6 +530,27 @@ fn place_blocks(
             // can't place this item as a block
             continue;
         };
+        let real_pos = event.position.get_in_direction(event.face);
+
+        // Can't place blocks on the flag positions
+        if real_pos == globals.red_flag || real_pos == globals.blue_flag {
+            continue;
+        }
+
+        // Can't place block if there's already a block there
+        if let Some(existing_block) = layer.block(real_pos) {
+            if existing_block.state != BlockState::AIR {
+                continue;
+            }
+        }
+
+        // Can't place the block if it would intersect the player's hitbox
+        if hitbox.intersects_strict(Aabb::new(
+            real_pos.to_dvec3(),
+            (real_pos.offset(1, 1, 1)).to_dvec3(),
+        )) {
+            continue;
+        }
 
         if *game_mode == GameMode::Survival {
             // check if the player has the item in their inventory and remove
@@ -540,7 +562,6 @@ fn place_blocks(
                 inventory.set_slot(slot_id, ItemStack::EMPTY);
             }
         }
-        let real_pos = event.position.get_in_direction(event.face);
         layer.set_block(real_pos, block_kind.to_state());
     }
 }
@@ -596,7 +617,7 @@ fn do_team_selector_portals(
         if let Some(team) = team {
             *game_mode = GameMode::Survival;
             let mut inventory = Inventory::new(InventoryKind::Player);
-            inventory.set_slot(36, ItemStack::new(ItemKind::WoodenSword, 1, None));
+            inventory.set_slot(36, ItemStack::new(ItemKind::WoodenSword, 1));
             inventory.set_slot(
                 37,
                 ItemStack::new(
@@ -605,7 +626,6 @@ fn do_team_selector_portals(
                         Team::Blue => ItemKind::BlueWool,
                     },
                     64,
-                    None,
                 ),
             );
             let combat_state = CombatState::default();
@@ -816,6 +836,7 @@ fn visualize_triggers(globals: Res<CtfGlobals>, mut layers: Query<&mut ChunkLaye
             layer.play_particle(
                 &Particle::Crit,
                 false,
+                false,
                 [
                     f64::from(pos.x) + 0.5,
                     f64::from(pos.y) + 0.5,
@@ -971,7 +992,7 @@ fn handle_combat_events(
         let victim_pos = victim.pos.0.xz();
         let attacker_pos = attacker.pos.0.xz();
 
-        let dir = (victim_pos - attacker_pos).normalize().as_vec2();
+        let dir = (victim_pos - attacker_pos).normalize();
 
         let knockback_xz = if attacker.state.has_bonus_knockback {
             18.0

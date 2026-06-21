@@ -12,8 +12,8 @@ use petgraph::{Direction, Graph};
 use tracing::{debug, info, trace, warn};
 use valence_server::client::{Client, SpawnClientsSet};
 use valence_server::event_loop::PacketEvent;
-use valence_server::protocol::packets::play::command_tree_s2c::NodeData;
-use valence_server::protocol::packets::play::{CommandExecutionC2s, CommandTreeS2c};
+use valence_server::protocol::packets::play::commands_s2c::NodeData;
+use valence_server::protocol::packets::play::{ChatCommandC2s, ChatCommandSignedC2s, CommandsS2c};
 use valence_server::protocol::WritePacket;
 use valence_server::EventLoopPreUpdate;
 
@@ -92,9 +92,19 @@ fn read_incoming_packets(
 ) {
     for packet in packets.read() {
         let client = packet.client;
-        if let Some(packet) = packet.decode::<CommandExecutionC2s>() {
+
+        if let Some(unsigned) = packet.decode::<ChatCommandC2s>() {
             event_writer.send(CommandExecutionEvent {
-                command: packet.command.to_string(),
+                command: unsigned.command.to_string(),
+                executor: client,
+            });
+        } else if let Some(signed) = packet.decode::<ChatCommandSignedC2s>() {
+            // TODO: verify command signatures.
+            // As per this gist: https://gist.github.com/kennytv/ed783dd244ca0321bbd882c347892874
+            // It looks like the client only sends the signed version if a command requires
+            // it (in vanilla thats /say for example).
+            event_writer.send(CommandExecutionEvent {
+                command: signed.command.to_string(),
                 executor: client,
             });
         }
@@ -193,7 +203,7 @@ fn update_client_command_tree(
                     graph: new_graph,
                     root: new_root,
                 };
-                let packet: CommandTreeS2c = command_graph.into();
+                let packet: CommandsS2c = command_graph.into();
 
                 client.write_packet(&packet);
             }

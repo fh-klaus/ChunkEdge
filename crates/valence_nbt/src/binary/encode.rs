@@ -16,7 +16,7 @@ use crate::{Compound, Error, List, Result, Value};
 ///
 /// Additionally, the root compound can be given a name. Typically the empty
 /// string `""` is used.
-pub fn to_binary<W, S, R>(comp: &Compound<S>, writer: W, root_name: &R) -> Result<()>
+pub fn to_binary<W, S, R>(comp: &Compound<S>, writer: W, root_name: Option<&R>) -> Result<()>
 where
     W: Write,
     S: ToModifiedUtf8 + Hash + Ord,
@@ -25,8 +25,24 @@ where
     let mut state = EncodeState { writer };
 
     state.write_tag(Tag::Compound)?;
-    state.write_string(root_name)?;
+    if let Some(root_name) = root_name {
+        state.write_string(root_name)?;
+    }
     state.write_compound(comp)?;
+
+    Ok(())
+}
+
+/// Encodes uncompressed network NBT binary data to the provided writer.
+/// Network NBT omits the root compound.
+pub fn to_network_binary<W, S>(val: &Compound<S>, writer: W) -> Result<()>
+where
+    W: Write,
+    S: ToModifiedUtf8 + Hash + Ord,
+{
+    let mut state = EncodeState { writer };
+
+    state.write_compound(val)?;
 
     Ok(())
 }
@@ -387,5 +403,18 @@ impl ToModifiedUtf8 for java_string::JavaString {
 
     fn to_modified_utf8<W: Write>(&self, encoded_len: usize, writer: W) -> std::io::Result<()> {
         <java_string::JavaStr as ToModifiedUtf8>::to_modified_utf8(self, encoded_len, writer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_network_binary_empty_compound() {
+        let comp: Compound<String> = Compound::new();
+        let mut buf = Vec::new();
+        to_network_binary(&comp, &mut buf).unwrap();
+        assert_eq!(buf, [0x0]);
     }
 }

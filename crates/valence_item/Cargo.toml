@@ -1,0 +1,19 @@
+[package]
+name = "valence_item"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+documentation.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+uuid.workspace = true
+valence_binary.workspace = true
+valence_generated.workspace = true
+valence_ident.workspace = true
+valence_nbt.workspace = true
+valence_text.workspace = true
+
+[lints]
+workspace = true

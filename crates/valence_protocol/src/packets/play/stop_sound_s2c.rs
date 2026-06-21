@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 use std::io::Write;
 
+use valence_binary::{Decode, Encode};
 use valence_ident::Ident;
 
 use crate::sound::SoundCategory;
-use crate::{Decode, Encode, Packet};
+use crate::Packet;
 
 #[derive(Clone, PartialEq, Debug, Packet)]
 pub struct StopSoundS2c<'a> {

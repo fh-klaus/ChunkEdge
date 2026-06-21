@@ -4,6 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Deserialize;
 use valence_build_utils::{ident, rerun_if_changed};
+// TODO: Update to support components (also default values for item components)
 
 #[derive(Deserialize, Clone, Debug)]
 struct Item {
@@ -14,17 +15,8 @@ struct Item {
     max_durability: u16,
     enchantability: u8,
     fireproof: bool,
-    food: Option<FoodComponent>,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-struct FoodComponent {
-    hunger: u16,
-    saturation: f32,
-    always_edible: bool,
-    meat: bool,
-    snack: bool,
-    // TODO: effects
+    // TODO: Implement food component
+    // food: Option<FoodComponent>,
 }
 
 pub(crate) fn build() -> anyhow::Result<TokenStream> {
@@ -108,32 +100,6 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
         })
         .collect::<TokenStream>();
 
-    let item_kind_to_food_component_arms = items
-        .iter()
-        .map(|item| match &item.food {
-            Some(food_component) => {
-                let name = ident(item.name.to_pascal_case());
-                let hunger = food_component.hunger;
-                let saturation = food_component.saturation;
-                let always_edible = food_component.always_edible;
-                let meat = food_component.meat;
-                let snack = food_component.snack;
-
-                quote! {
-                    Self::#name => Some(FoodComponent {
-                        hunger: #hunger,
-                        saturation: #saturation,
-                        always_edible: #always_edible,
-                        meat: #meat,
-                        snack: #snack,
-                    }
-                ),
-                }
-            }
-            None => quote! {},
-        })
-        .collect::<TokenStream>();
-
     let item_kind_to_max_durability_arms = items
         .iter()
         .filter(|item| item.max_durability != 0)
@@ -173,7 +139,9 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
         .collect::<TokenStream>();
 
     Ok(quote! {
-        #[doc = "Represents an item from the game"]
+        use crate::registry_id::RegistryId;
+
+        /// Represents an item from the game
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
         #[repr(u16)]
         pub enum ItemKind {
@@ -211,9 +179,9 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            #[doc = "Construct an item kind for its `snake_case` name."]
-            #[doc = ""]
-            #[doc = "Returns `None` if the name is invalid."]
+            /// Construct an item kind for its `snake_case` name.
+            ///
+            /// Returns `None` if the name is invalid.
             #[allow(clippy::should_implement_trait)]
             pub fn from_str(name: &str) -> Option<ItemKind> {
                 match name {
@@ -222,7 +190,7 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            #[doc = "Gets the `snake_case` name of this item kind."]
+            /// Gets the `snake_case` name of this item kind.
             pub const fn to_str(self) -> &'static str {
                 match self {
                     #item_kind_to_str_arms
@@ -240,16 +208,6 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
             pub const fn max_stack(self) -> i8 {
                 match self {
                     #item_kind_to_max_stack_arms
-                }
-            }
-
-            #[doc = "Returns a food component which stores hunger, saturation etc."]
-            #[doc = ""]
-            #[doc = "If the item kind can't be eaten, `None` will be returned."]
-            pub const fn food_component(self) -> Option<FoodComponent> {
-                match self {
-                    #item_kind_to_food_component_arms
-                    _ => None
                 }
             }
 
@@ -282,23 +240,14 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            /*
-            #[doc = "Constructs an item kind from a block kind."]
-            #[doc = ""]
-            #[doc = "[`ItemKind::Air`] is used to indicate the absence of an item."]
-            pub const fn from_block_kind(kind: BlockKind) -> Self {
-                kind.to_item_kind()
-            }
-
-            #[doc = "Constructs a block kind from an item kind."]
-            #[doc = ""]
-            #[doc = "If the given item kind doesn't have a corresponding block kind, `None` is returned."]
-            pub const fn to_block_kind(self) -> Option<BlockKind> {
-                BlockKind::from_item_kind(self)
-            }*/
-
             #[doc = "An array of all item kinds."]
             pub const ALL: [Self; #item_kind_count] = [#(Self::#item_kind_variants,)*];
+        }
+
+        impl From<ItemKind> for RegistryId {
+            fn from(item: ItemKind) -> Self {
+                RegistryId::new(i32::from(item.to_raw()))
+            }
         }
     })
 }

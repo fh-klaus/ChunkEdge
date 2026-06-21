@@ -485,10 +485,8 @@ impl JavaStr {
         if index >= self.len() {
             // For `true` we have two options:
             //
-            // - index == self.len()
-            //   Empty strings are valid, so return true
-            // - index > self.len()
-            //   In this case return false
+            // - index == self.len() Empty strings are valid, so return true
+            // - index > self.len() In this case return false
             //
             // The check is placed exactly here, because it improves generated
             // code on higher opt-levels. See PR https://github.com/rust-lang/rust/pull/84751 for more details.
@@ -1177,8 +1175,8 @@ impl JavaStr {
     /// assert_eq!("Per", first);
     /// assert_eq!(" Martin-Löf", last);
     ///
-    /// assert_eq!(None, s.split_at_checked(13));  // Inside “ö”
-    /// assert_eq!(None, s.split_at_checked(16));  // Beyond the string length
+    /// assert_eq!(None, s.split_at_checked(13)); // Inside “ö”
+    /// assert_eq!(None, s.split_at_checked(16)); // Beyond the string length
     /// ```
     #[inline]
     #[must_use]
@@ -1221,8 +1219,8 @@ impl JavaStr {
     /// }
     /// assert_eq!("PER Martin-Löf", s);
     ///
-    /// assert_eq!(None, s.split_at_mut_checked(13));  // Inside “ö”
-    /// assert_eq!(None, s.split_at_mut_checked(16));  // Beyond the string length
+    /// assert_eq!(None, s.split_at_mut_checked(13)); // Inside “ö”
+    /// assert_eq!(None, s.split_at_mut_checked(16)); // Beyond the string length
     /// ```
     #[inline]
     #[must_use]
@@ -2372,16 +2370,20 @@ unsafe impl JavaStrSliceIndex for RangeFrom<usize> {
 
     #[inline]
     unsafe fn get_unchecked(self, slice: *const JavaStr) -> *const JavaStr {
-        #[allow(clippy::needless_borrow)]
         let len = unsafe { (&(*(slice as *const [u8]))).len() };
-        unsafe { (self.start..len).get_unchecked(slice) }
+        #[allow(clippy::needless_borrow)]
+        unsafe {
+            (self.start..len).get_unchecked(slice)
+        }
     }
 
     #[inline]
     unsafe fn get_unchecked_mut(self, slice: *mut JavaStr) -> *mut JavaStr {
-        #[allow(clippy::needless_borrow)]
         let len = unsafe { (&(*(slice as *mut [u8]))).len() };
-        unsafe { (self.start..len).get_unchecked_mut(slice) }
+        #[allow(clippy::needless_borrow)]
+        unsafe {
+            (self.start..len).get_unchecked_mut(slice)
+        }
     }
 }
 

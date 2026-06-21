@@ -1,0 +1,11 @@
+use valence_binary::{Decode, Encode};
+
+use crate::Packet;
+
+#[derive(Copy, Clone, Debug, Encode, Decode, Packet, PartialEq, Eq)]
+pub enum PlayerAbilitiesC2s {
+    #[packet(tag = 0b00)]
+    StopFlying,
+    #[packet(tag = 0b10)]
+    StartFlying,
+}

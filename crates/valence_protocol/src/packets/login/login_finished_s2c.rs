@@ -1,0 +1,19 @@
+use std::borrow::Cow;
+
+use uuid::Uuid;
+use valence_binary::{Bounded, Decode, Encode};
+
+use crate::profile::Property;
+use crate::{Packet, PacketState};
+
+#[derive(Clone, Debug, Encode, Decode, Packet)]
+#[packet(state = PacketState::Login)]
+/// Sent by the server to the client to send the game profile of the player.
+/// This packet is sent after the client has successfully logged in. This packet
+/// is used to send data about the player such as their UUID, username, skin,
+/// and cape.
+pub struct LoginFinishedS2c<'a> {
+    pub uuid: Uuid,
+    pub username: Bounded<&'a str, 16>,
+    pub properties: Cow<'a, [Property<&'a str>]>,
+}

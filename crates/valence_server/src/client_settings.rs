@@ -1,8 +1,9 @@
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use valence_entity::player::{self, PlayerModelParts};
-use valence_protocol::packets::play::client_settings_c2s::ChatMode;
-use valence_protocol::packets::play::ClientSettingsC2s;
+use valence_protocol::packets::configuration::client_information_c2s::ParticleMode;
+use valence_protocol::packets::play::client_information_c2s::ChatMode;
+use valence_protocol::packets::play::ClientInformationC2s;
 
 use crate::client::ViewDistance;
 use crate::event_loop::{EventLoopPreUpdate, PacketEvent};
@@ -23,6 +24,7 @@ pub struct ClientSettings {
     pub chat_colors: bool,
     pub enable_text_filtering: bool,
     pub allow_server_listings: bool,
+    pub particle_mode: ParticleMode,
 }
 
 fn handle_client_settings(
@@ -35,17 +37,19 @@ fn handle_client_settings(
     )>,
 ) {
     for packet in packets.read() {
-        if let Some(pkt) = packet.decode::<ClientSettingsC2s>() {
+        if let Some(pkt) = packet.decode::<ClientInformationC2s>() {
             if let Ok((mut view_dist, mut settings, mut model_parts, mut main_arm)) =
                 clients.get_mut(packet.client)
             {
+                // TODO: set a server max view distance
                 view_dist.set_if_neq(ViewDistance::new(pkt.view_distance));
 
-                settings.locale = pkt.locale.into();
+                settings.locale = pkt.locale.0.into();
                 settings.chat_mode = pkt.chat_mode;
                 settings.chat_colors = pkt.chat_colors;
                 settings.enable_text_filtering = pkt.enable_text_filtering;
                 settings.allow_server_listings = pkt.allow_server_listings;
+                settings.particle_mode = pkt.particle_mode;
 
                 model_parts.set_if_neq(PlayerModelParts(u8::from(pkt.displayed_skin_parts) as i8));
                 main_arm.set_if_neq(player::MainArm(pkt.main_arm as i8));

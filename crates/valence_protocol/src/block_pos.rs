@@ -6,10 +6,10 @@ use anyhow::bail;
 use bitfield_struct::bitfield;
 use derive_more::From;
 use thiserror::Error;
+use valence_binary::{Decode, Encode};
 use valence_math::{DVec3, IVec3};
 
 use crate::direction::Direction;
-use crate::{Decode, Encode};
 
 /// Represents an absolute block position in world space.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -44,6 +44,26 @@ impl BlockPos {
             Direction::West => BlockPos::new(self.x - 1, self.y, self.z),
             Direction::East => BlockPos::new(self.x + 1, self.y, self.z),
         }
+    }
+
+    /// Get the center of a block position by adding 0.5 to each axis.
+    pub const fn to_center_dvec3(self) -> DVec3 {
+        DVec3::new(
+            self.x as f64 + 0.5,
+            self.y as f64 + 0.5,
+            self.z as f64 + 0.5,
+        )
+    }
+
+    /// Get the bottom center of a block position by adding 0.5 to the x and z
+    /// axes.
+    pub const fn to_bottom_center_dvec3(self) -> DVec3 {
+        DVec3::new(self.x as f64 + 0.5, self.y as f64, self.z as f64 + 0.5)
+    }
+
+    /// Convert the block position to a vector without centering.
+    pub const fn to_dvec3(self) -> DVec3 {
+        DVec3::new(self.x as f64, self.y as f64, self.z as f64)
     }
 
     pub const fn offset(self, x: i32, y: i32, z: i32) -> Self {

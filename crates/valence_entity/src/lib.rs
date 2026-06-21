@@ -1,5 +1,9 @@
 #![doc = include_str!("../README.md")]
-#![allow(clippy::unseparated_literal_suffix, clippy::manual_string_new)]
+#![allow(
+    clippy::unseparated_literal_suffix,
+    clippy::manual_string_new,
+    clippy::needless_raw_strings
+)]
 
 pub mod active_status_effects;
 pub mod attributes;
@@ -16,8 +20,8 @@ pub use manager::EntityManager;
 use paste::paste;
 use tracing::warn;
 use tracked_data::TrackedData;
+use valence_binary::{Decode, Encode, IdOr, TextComponent, VarInt};
 use valence_math::{DVec3, Vec3};
-use valence_protocol::{Decode, Encode, VarInt};
 use valence_server_common::{Despawned, UniqueId};
 
 use crate::attributes::TrackedEntityAttributes;
@@ -43,6 +47,13 @@ pub struct InitEntitiesSet;
 #[derive(SystemSet, Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct UpdateTrackedDataSet;
 
+/// When derived entity state is copied into tracked components ahead of
+/// tracked-data serialization.
+///
+/// This set lives in [`PostUpdate`].
+#[derive(SystemSet, Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct UpdateDerivedEntityDataSet;
+
 /// When entities are updated and changes from the current tick are cleared.
 /// Systems that need to observe changes to entities (Such as the difference
 /// between [`Position`] and [`OldPosition`]) should run _before_ this set (and
@@ -59,9 +70,11 @@ impl Plugin for EntityPlugin {
                 PostUpdate,
                 (
                     InitEntitiesSet,
-                    UpdateTrackedDataSet,
+                    UpdateDerivedEntityDataSet.after(InitEntitiesSet),
+                    UpdateTrackedDataSet.after(UpdateDerivedEntityDataSet),
                     ClearEntityChangesSet
                         .after(InitEntitiesSet)
+                        .after(UpdateDerivedEntityDataSet)
                         .after(UpdateTrackedDataSet),
                 ),
             )
@@ -322,11 +335,11 @@ pub struct HeadYaw(pub f32);
 
 /// Entity velocity in m/s.
 #[derive(Component, Copy, Clone, Default, Debug, Deref, DerefMut)]
-pub struct Velocity(pub Vec3);
+pub struct Velocity(pub DVec3);
 
 impl Velocity {
     pub fn to_packet_units(self) -> valence_protocol::Velocity {
-        valence_protocol::Velocity::from_ms_f32(self.0.into())
+        valence_protocol::Velocity::from_ms_f64(self.0.into())
     }
 }
 
@@ -469,10 +482,14 @@ pub enum Pose {
     Dying,
     Croaking,
     UsingTongue,
+    Sitting,
     Roaring,
     Sniffing,
     Emerging,
     Digging,
+    Sliding,
+    Shooting,
+    Inhaling,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
@@ -488,61 +505,219 @@ pub enum BoatKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
 pub enum CatKind {
-    Tabby,
+    AllBlack,
     #[default]
     Black,
-    Red,
-    Siamese,
     BritishShorthair,
     Calico,
+    Jellie,
     Persian,
     Ragdoll,
+    Red,
+    Siamese,
+    Tabby,
     White,
-    Jellie,
-    AllBlack,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum CowKind {
+    Cold,
+    #[default]
+    Temperate,
+    Warm,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum WolfKind {
+    Ashen,
+    Black,
+    Chestnut,
+    #[default]
+    Pale,
+    Rusty,
+    Snowy,
+    Spotted,
+    Striped,
+    Woods,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum WolfSoundKind {
+    Angry,
+    Big,
+    #[default]
+    Classic,
+    Cute,
+    Grumpy,
+    Puglin,
+    Sad,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum ArmadilloState {
+    #[default]
+    Idle,
+    Rolling,
+    Scared,
+    Unrolling,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
 pub enum FrogKind {
+    Cold,
     #[default]
     Temperate,
     Warm,
-    Cold,
 }
-
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum PigKind {
+    Cold,
+    #[default]
+    Temperate,
+    Warm,
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
+pub enum ChickenKind {
+    Cold,
+    #[default]
+    Temperate,
+    Warm,
+}
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
 pub enum PaintingKind {
     #[default]
-    Kebab,
-    Aztec,
     Alban,
+    Aztec,
     Aztec2,
+    Backyard,
+    Baroque,
     Bomb,
-    Plant,
-    Wasteland,
-    Pool,
-    Courbet,
-    Sea,
-    Sunset,
-    Creebet,
-    Wanderer,
-    Graham,
-    Match,
+    Bouquet,
+    BurningSkull,
     Bust,
-    Stage,
-    Void,
-    SkullAndRoses,
-    Wither,
+    Cavebird,
+    Changing,
+    Cotan,
+    Courbet,
+    Creebet,
+    DonkeyKong,
+    Earth,
+    Endboss,
+    Fern,
     Fighters,
+    Finding,
+    Fire,
+    Graham,
+    Humble,
+    Kebab,
+    Lowmist,
+    Match,
+    Meditative,
+    Orb,
+    Owlemons,
+    Passage,
     Pointer,
     Pigscene,
-    BurningSkull,
+    Plant,
+    Pond,
+    Pool,
+    PrairieRide,
+    Sea,
     Skeleton,
-    Earth,
-    Wind,
+    SkullAndRoses,
+    Stage,
+    Sunflowers,
+    Sunset,
+    Tides,
+    Unpacked,
+    Void,
+    Wanderer,
+    Wasteland,
     Water,
-    Fire,
-    DonkeyKong,
+    Wind,
+    Wither,
+}
+
+impl PaintingKind {
+    pub const ALL: [Self; 50] = [
+        Self::Alban,
+        Self::Aztec,
+        Self::Aztec2,
+        Self::Backyard,
+        Self::Baroque,
+        Self::Bomb,
+        Self::Bouquet,
+        Self::BurningSkull,
+        Self::Bust,
+        Self::Cavebird,
+        Self::Changing,
+        Self::Cotan,
+        Self::Courbet,
+        Self::Creebet,
+        Self::DonkeyKong,
+        Self::Earth,
+        Self::Endboss,
+        Self::Fern,
+        Self::Fighters,
+        Self::Finding,
+        Self::Fire,
+        Self::Graham,
+        Self::Humble,
+        Self::Kebab,
+        Self::Lowmist,
+        Self::Match,
+        Self::Meditative,
+        Self::Orb,
+        Self::Owlemons,
+        Self::Passage,
+        Self::Pointer,
+        Self::Pigscene,
+        Self::Plant,
+        Self::Pond,
+        Self::Pool,
+        Self::PrairieRide,
+        Self::Sea,
+        Self::Skeleton,
+        Self::SkullAndRoses,
+        Self::Stage,
+        Self::Sunflowers,
+        Self::Sunset,
+        Self::Tides,
+        Self::Unpacked,
+        Self::Void,
+        Self::Wanderer,
+        Self::Wasteland,
+        Self::Water,
+        Self::Wind,
+        Self::Wither,
+    ];
+
+    pub fn registry_id(self) -> valence_protocol::RegistryId {
+        valence_protocol::RegistryId::new(self as i32)
+    }
+
+    pub fn from_registry_id(id: valence_protocol::RegistryId) -> Option<Self> {
+        let Ok(idx) = usize::try_from(id.id()) else {
+            return None;
+        };
+
+        Self::ALL.get(idx).copied()
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct PaintingVariantDefinition {
+    pub width: i32,
+    pub height: i32,
+    pub asset_id: String,
+    pub title: Option<valence_protocol::Text>,
+    pub author: Option<valence_protocol::Text>,
+}
+
+impl Encode for PaintingVariantDefinition {
+    fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+        VarInt(self.width).encode(&mut w)?;
+        VarInt(self.height).encode(&mut w)?;
+        self.asset_id.encode(&mut w)?;
+        self.title.clone().map(TextComponent::from).encode(&mut w)?;
+        self.author.clone().map(TextComponent::from).encode(w)
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Encode, Decode)]
@@ -587,5 +762,51 @@ impl Decode<'_> for OptionalInt {
         } else {
             Some(n.wrapping_sub(1))
         }))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct OptionalBlockState(Option<valence_protocol::BlockState>);
+
+impl Encode for OptionalBlockState {
+    fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+        match self.0 {
+            None => VarInt(0).encode(w),
+            Some(state) => {
+                let id = i32::from(state.to_raw());
+
+                if id == 0 {
+                    anyhow::bail!("air cannot be encoded as optional block state");
+                }
+
+                VarInt(id).encode(w)
+            }
+        }
+    }
+}
+
+impl Decode<'_> for OptionalBlockState {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let id = VarInt::decode(r)?.0;
+
+        if id == 0 {
+            return Ok(Self(None));
+        }
+
+        let id =
+            u16::try_from(id).map_err(|_| anyhow::anyhow!("invalid optional block state ID"))?;
+        let state = valence_protocol::BlockState::from_raw(id)
+            .ok_or_else(|| anyhow::anyhow!("invalid optional block state ID"))?;
+
+        Ok(Self(Some(state)))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PaintingVariant<'a>(&'a IdOr<PaintingVariantDefinition>);
+
+impl Encode for PaintingVariant<'_> {
+    fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+        self.0.encode(w)
     }
 }

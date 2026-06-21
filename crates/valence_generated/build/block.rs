@@ -579,11 +579,16 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
 
     Ok(quote! {
         use valence_math::{Aabb, DVec3};
+        use crate::registry_id::RegistryId;
 
         #[doc = "Represents the state of a block. This does not include block entity data such as"]
         #[doc = "the text on a sign, the design on a banner, or the content of a spawner."]
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
         pub struct BlockState(u16);
+
+        static SHAPES: &[Aabb; #shape_count] = &[
+            #(#shapes,)*
+        ];
 
         impl BlockState {
             #[doc = "Returns the default block state for a given block type."]
@@ -692,18 +697,13 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            #[allow(clippy::large_stack_arrays)]
-            const SHAPES: [Aabb; #shape_count] = [
-                #(#shapes,)*
-            ];
-
             pub fn collision_shapes(self) -> impl ExactSizeIterator<Item = Aabb> + FusedIterator + Clone {
                 let shape_idxs: &'static [u16] = match self.0 {
                     #state_to_collision_shapes_arms
                     _ => &[],
                 };
 
-                shape_idxs.into_iter().map(|idx| Self::SHAPES[*idx as usize])
+                shape_idxs.into_iter().map(|idx| SHAPES[*idx as usize])
             }
 
             pub const fn luminance(self) -> u8 {
@@ -735,9 +735,9 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
         }
 
         impl BlockKind {
-            #[doc = "Construct a block kind from its `snake_case` name."]
-            #[doc = ""]
-            #[doc = "Returns `None` if the name is invalid."]
+            /// Construct a block kind from its `snake_case` name.
+            ///
+            /// Returns `None` if the name is invalid.
             pub fn from_str(name: &str) -> Option<Self> {
                 match name {
                     #block_kind_from_str_arms
@@ -745,7 +745,7 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            #[doc = "Get the `snake_case` name of this block kind."]
+            /// Get the `snake_case` name of this block kind.
             pub const fn to_str(self) -> &'static str {
                 match self {
                     #block_kind_to_str_arms
@@ -821,7 +821,13 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
             pub const ALL: [Self; #block_kind_count] = [#(Self::#block_kind_variants,)*];
         }
 
-        #[doc = "The default block kind is `air`."]
+        impl From<BlockKind> for RegistryId {
+            fn from(kind: BlockKind) -> Self {
+                RegistryId::new(i32::from(kind.to_raw()))
+            }
+        }
+
+        /// The default block kind is `air`.
         impl Default for BlockKind {
             fn default() -> Self {
                 Self::Air
@@ -837,9 +843,9 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
         }
 
         impl PropName {
-            #[doc = "Construct a property name from its `snake_case` name."]
-            #[doc = ""]
-            #[doc = "Returns `None` if the given name is not valid."]
+            /// Construct a property name from its `snake_case` name.
+            ///
+            /// Returns `None` if the given name is not valid.
             pub fn from_str(name: &str) -> Option<Self> {
                 // TODO: match on str in const fn.
                 match name {
@@ -848,7 +854,7 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            #[doc = "Get the `snake_case` name of this property name."]
+            /// Get the `snake_case` name of this property name.
             pub const fn to_str(self) -> &'static str {
                 match self {
                     #prop_name_to_str_arms
@@ -868,9 +874,9 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
         }
 
         impl PropValue {
-            #[doc = "Construct a property value from its `snake_case` name."]
-            #[doc = ""]
-            #[doc = "Returns `None` if the given name is not valid."]
+            /// Construct a property value from its `snake_case` name.
+            ///
+            /// Returns `None` if the given name is not valid.
             pub fn from_str(name: &str) -> Option<Self> {
                 match name {
                     #prop_value_from_str_arms
@@ -878,7 +884,7 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 }
             }
 
-            #[doc = "Get the `snake_case` name of this property value."]
+            /// Get the `snake_case` name of this property value.
             pub const fn to_str(self) -> &'static str {
                 match self {
                     #prop_value_to_str_arms

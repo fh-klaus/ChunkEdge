@@ -51,7 +51,6 @@ pub use valence_command_macros as command_macros;
 pub use valence_equipment as equipment;
 #[cfg(feature = "inventory")]
 pub use valence_inventory as inventory;
-pub use valence_lang as lang;
 #[cfg(feature = "network")]
 pub use valence_network as network;
 #[cfg(feature = "player_list")]
@@ -87,6 +86,7 @@ pub use valence_server::*;
 pub use valence_weather as weather;
 #[cfg(feature = "world_border")]
 pub use valence_world_border as world_border;
+pub use {valence_item as item, valence_lang as lang};
 
 /// Contains the most frequently used items in Valence projects.
 ///
@@ -132,7 +132,7 @@ pub mod prelude {
         View, ViewDistance, VisibleChunkLayer, VisibleEntityLayers,
     };
     pub use valence_server::client_command::{
-        ClientCommand, JumpWithHorseEvent, JumpWithHorseState, LeaveBedEvent, SneakEvent,
+        JumpWithHorseEvent, JumpWithHorseState, LeaveBedEvent, PlayerCommand, SneakEvent,
         SneakState, SprintEvent, SprintState,
     };
     pub use valence_server::entity::hitbox::{Hitbox, HitboxShape};
@@ -152,8 +152,9 @@ pub mod prelude {
     pub use valence_server::math::{DVec2, DVec3, Vec2, Vec3};
     pub use valence_server::message::SendMessage as _;
     pub use valence_server::nbt::Compound;
-    pub use valence_server::protocol::packets::play::particle_s2c::Particle;
+    pub use valence_server::protocol::packets::play::level_particles_s2c::Particle;
     pub use valence_server::protocol::text::{Color, IntoText, Text};
+    pub use valence_server::protocol::RegistryId;
     pub use valence_server::spawn::{ClientSpawnQuery, ClientSpawnQueryReadOnly, RespawnPosition};
     pub use valence_server::title::SetTitle as _;
     pub use valence_server::{

@@ -12,7 +12,10 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-valence_server.workspace = true
-bevy_ecs.workspace = true
 bevy_app.workspace = true
-derive_more.workspace = true
+bevy_ecs.workspace = true
+derive_more = { workspace = true, features = [
+    "deref",
+    "deref_mut",
+] }
+valence_server.workspace = true

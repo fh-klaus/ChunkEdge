@@ -151,28 +151,29 @@ pub fn add_potion_effect(
     }
 }
 
-fn adjust_modifier_amount(amplifier: u8, amount: f64) -> f64 {
+fn adjust_modifier_amount(amplifier: i32, amount: f64) -> f64 {
     amount * f64::from(amplifier + 1)
 }
 
 fn apply_potion_attribute(
     attributes: &mut Mut<EntityAttributes>,
     health: &mut Option<Mut<Health>>,
-    amplifier: u8,
+    amplifier: i32,
     attr: AttributeModifier,
+    name: &str,
 ) {
-    attributes.remove_modifier(attr.attribute, attr.uuid);
+    attributes.remove_modifier(attr.attribute, name);
 
     let amount = adjust_modifier_amount(amplifier, attr.value);
 
-    attributes.set_modifier(attr.attribute, attr.uuid, amount, attr.operation);
+    attributes.set_modifier(attr.attribute, name, amount, attr.operation);
 
     // not quite how vanilla does it, but it's close enough
-    if attr.attribute == EntityAttribute::GenericMaxHealth {
+    if attr.attribute == EntityAttribute::MaxHealth {
         if let Some(ref mut health) = health {
             health.0 = health.0.min(
                 attributes
-                    .get_compute_value(EntityAttribute::GenericMaxHealth)
+                    .get_compute_value(EntityAttribute::MaxHealth)
                     .unwrap_or(0.0) as f32,
             );
         }
@@ -183,14 +184,15 @@ fn remove_potion_attribute(
     attributes: &mut Mut<EntityAttributes>,
     health: &mut Option<Mut<Health>>,
     attr: AttributeModifier,
+    name: &str,
 ) {
-    attributes.remove_modifier(attr.attribute, attr.uuid);
+    attributes.remove_modifier(attr.attribute, name);
 
-    if attr.attribute == EntityAttribute::GenericMaxHealth {
+    if attr.attribute == EntityAttribute::MaxHealth {
         if let Some(ref mut health) = health {
             health.0 = health.0.min(
                 attributes
-                    .get_compute_value(EntityAttribute::GenericMaxHealth)
+                    .get_compute_value(EntityAttribute::MaxHealth)
                     .unwrap_or(0.0) as f32,
             );
         }
@@ -220,7 +222,7 @@ pub fn handle_status_effect_added(
                     // need to keep track of the previous absorption value and subtract that from
                     // the new value (because you can take damage while having absorption)
                     if let Some(mut absorption) = absorption {
-                        absorption.0 += f32::from(effect.amplifier() + 1) * 4.0;
+                        absorption.0 += (effect.amplifier() + 1) as f32 * 4.0;
                     }
                 }
                 StatusEffect::InstantHealth => {
@@ -246,6 +248,7 @@ pub fn handle_status_effect_added(
                             &mut health,
                             effect.amplifier(),
                             attr,
+                            status.name().as_str(),
                         );
                     }
                 }
@@ -271,7 +274,7 @@ pub fn handle_status_effect_removed(
             match effect.status_effect() {
                 StatusEffect::Absorption => {
                     if let Some(mut absorption) = absorption {
-                        absorption.0 -= f32::from(effect.amplifier() + 1) * 4.0;
+                        absorption.0 -= (effect.amplifier() + 1) as f32 * 4.0;
                     }
                 }
                 StatusEffect::Glowing => {
@@ -282,7 +285,12 @@ pub fn handle_status_effect_removed(
                 }
                 status => {
                     for attr in status.attribute_modifiers() {
-                        remove_potion_attribute(&mut attributes, &mut health, attr);
+                        remove_potion_attribute(
+                            &mut attributes,
+                            &mut health,
+                            attr,
+                            status.name().as_str(),
+                        );
                     }
                 }
             }
@@ -297,20 +305,20 @@ pub fn handle_status_effect_update(
         for effect in status.get_current_effects() {
             match effect.status_effect() {
                 StatusEffect::Regeneration => {
-                    let i = 50 >> u32::from(effect.amplifier().min(31));
+                    let i = 50 >> effect.amplifier().min(31);
 
                     if i == 0 || effect.active_ticks() % i == 0 {
                         if let Some(ref mut health) = health {
                             health.0 = (health.0 + 1.0).min(
                                 attributes
-                                    .get_compute_value(EntityAttribute::GenericMaxHealth)
+                                    .get_compute_value(EntityAttribute::MaxHealth)
                                     .unwrap_or(0.0) as f32,
                             );
                         }
                     }
                 }
                 StatusEffect::Poison => {
-                    let i = 25 >> u32::from(effect.amplifier().min(31));
+                    let i = 25 >> effect.amplifier().min(31);
 
                     if i == 0 || effect.active_ticks() % i == 0 {
                         if let Some(ref mut health) = health {
@@ -319,7 +327,7 @@ pub fn handle_status_effect_update(
                     }
                 }
                 StatusEffect::Wither => {
-                    let i = 40 >> u32::from(effect.amplifier().min(31));
+                    let i = 40 >> effect.amplifier().min(31);
 
                     if i == 0 || effect.active_ticks() % i == 0 {
                         if let Some(ref mut health) = health {

@@ -1,4 +1,4 @@
-use valence_server::protocol::packets::play::command_tree_s2c::Parser;
+use valence_server::protocol::packets::play::commands_s2c::Parser;
 use valence_server::GameMode;
 
 use crate::parsers::{CommandArg, CommandArgParseError, ParseInput};
@@ -22,7 +22,7 @@ impl CommandArg for GameMode {
         }
     }
 
-    fn display() -> Parser {
+    fn display() -> Parser<'static> {
         Parser::GameMode
     }
 }

@@ -37,6 +37,22 @@ struct Attribute {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(untagged)]
+enum PaintingVariantValue {
+    Identifier(String),
+    Inline(PaintingVariantInline),
+}
+
+#[derive(Deserialize, Clone, Debug)]
+struct PaintingVariantInline {
+    width: i32,
+    height: i32,
+    asset_id: String,
+    title: Option<String>,
+    author: Option<String>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
 #[serde(tag = "type", content = "default_value", rename_all = "snake_case")]
 #[allow(dead_code)]
 enum Value {
@@ -57,11 +73,12 @@ enum Value {
     BlockPos(BlockPos),
     OptionalBlockPos(Option<BlockPos>),
     Facing(String),
-    OptionalUuid(Option<String>),
+    LazyEntityReference(Option<()>), // TODO
     BlockState(String),
     OptionalBlockState(Option<String>),
     NbtCompound(String),
     Particle(String),
+    ParticleList(Vec<String>),
     VillagerData {
         #[serde(rename = "type")]
         typ: String,
@@ -71,10 +88,16 @@ enum Value {
     OptionalInt(Option<i32>),
     EntityPose(String),
     CatVariant(String),
+    CowVariant(String),
+    WolfVariant(String),
+    WolfSoundVariant(String),
     FrogVariant(String),
+    PigVariant(String),
+    ChickenVariant(String),
     OptionalGlobalPos(Option<()>), // TODO
-    PaintingVariant(String),
+    PaintingVariant(PaintingVariantValue),
     SnifferState(String),
+    ArmadilloState(String),
     Vector3f {
         x: f32,
         y: f32,
@@ -111,21 +134,28 @@ impl Value {
             Value::BlockPos(_) => 10,
             Value::OptionalBlockPos(_) => 11,
             Value::Facing(_) => 12,
-            Value::OptionalUuid(_) => 13,
+            Value::LazyEntityReference(_) => 13,
             Value::BlockState(_) => 14,
             Value::OptionalBlockState(_) => 15,
             Value::NbtCompound(_) => 16,
             Value::Particle(_) => 17,
-            Value::VillagerData { .. } => 18,
-            Value::OptionalInt(_) => 19,
-            Value::EntityPose(_) => 20,
-            Value::CatVariant(_) => 21,
-            Value::FrogVariant(_) => 22,
-            Value::OptionalGlobalPos(_) => 23,
-            Value::PaintingVariant(_) => 24,
-            Value::SnifferState(_) => 25,
-            Value::Vector3f { .. } => 26,
-            Value::Quaternionf { .. } => 27,
+            Value::ParticleList(_) => 18,
+            Value::VillagerData { .. } => 19,
+            Value::OptionalInt(_) => 20,
+            Value::EntityPose(_) => 21,
+            Value::CatVariant(_) => 22,
+            Value::CowVariant(_) => 23,
+            Value::WolfVariant(_) => 24,
+            Value::WolfSoundVariant(_) => 25,
+            Value::FrogVariant(_) => 26,
+            Value::PigVariant(_) => 27,
+            Value::ChickenVariant(_) => 28,
+            Value::OptionalGlobalPos(_) => 29,
+            Value::PaintingVariant(_) => 30,
+            Value::SnifferState(_) => 31,
+            Value::ArmadilloState(_) => 32,
+            Value::Vector3f { .. } => 33,
+            Value::Quaternionf { .. } => 34,
         }
     }
 
@@ -144,19 +174,32 @@ impl Value {
             Value::BlockPos(_) => quote!(valence_protocol::BlockPos),
             Value::OptionalBlockPos(_) => quote!(Option<valence_protocol::BlockPos>),
             Value::Facing(_) => quote!(valence_protocol::Direction),
-            Value::OptionalUuid(_) => quote!(Option<::uuid::Uuid>),
+            Value::LazyEntityReference(_) => quote!(()), // TODO
             Value::BlockState(_) => quote!(valence_protocol::BlockState),
-            Value::OptionalBlockState(_) => quote!(valence_protocol::BlockState),
+            Value::OptionalBlockState(_) => quote!(Option<valence_protocol::BlockState>),
             Value::NbtCompound(_) => quote!(valence_nbt::Compound),
-            Value::Particle(_) => quote!(valence_protocol::packets::play::particle_s2c::Particle),
+            Value::Particle(_) => {
+                quote!(valence_protocol::packets::play::level_particles_s2c::Particle)
+            }
+            Value::ParticleList(_) => {
+                quote!(Vec<valence_protocol::packets::play::level_particles_s2c::Particle>)
+            }
             Value::VillagerData { .. } => quote!(crate::VillagerData),
             Value::OptionalInt(_) => quote!(Option<i32>),
             Value::EntityPose(_) => quote!(crate::Pose),
             Value::CatVariant(_) => quote!(crate::CatKind),
+            Value::CowVariant(_) => quote!(crate::CowKind),
+            Value::WolfVariant(_) => quote!(crate::WolfKind),
+            Value::WolfSoundVariant(_) => quote!(crate::WolfSoundKind),
             Value::FrogVariant(_) => quote!(crate::FrogKind),
+            Value::PigVariant(_) => quote!(crate::PigKind),
+            Value::ChickenVariant(_) => quote!(crate::ChickenKind),
             Value::OptionalGlobalPos(_) => quote!(()), // TODO
-            Value::PaintingVariant(_) => quote!(crate::PaintingKind),
+            Value::PaintingVariant(_) => {
+                quote!(valence_binary::IdOr<crate::PaintingVariantDefinition>)
+            }
             Value::SnifferState(_) => quote!(crate::SnifferState),
+            Value::ArmadilloState(_) => quote!(crate::ArmadilloState),
             Value::Vector3f { .. } => quote!(valence_math::Vec3),
             Value::Quaternionf { .. } => quote!(valence_math::Quat),
         }
@@ -177,8 +220,7 @@ impl Value {
                 assert!(t.is_none());
                 quote!(None)
             }
-            Value::ItemStack(stack) => {
-                assert_eq!(stack, "0 air");
+            Value::ItemStack(_stack) => {
                 quote!(valence_protocol::ItemStack::default())
             }
             Value::Boolean(b) => quote!(#b),
@@ -200,25 +242,32 @@ impl Value {
                 let variant = ident(f.to_pascal_case());
                 quote!(valence_protocol::Direction::#variant)
             }
-            Value::OptionalUuid(uuid) => {
-                assert!(uuid.is_none());
-                quote!(None)
+            Value::LazyEntityReference(_) => {
+                quote!(())
             }
             Value::BlockState(_) => {
                 quote!(valence_protocol::BlockState::default())
             }
             Value::OptionalBlockState(bs) => {
                 assert!(bs.is_none());
-                quote!(valence_protocol::BlockState::default())
+                quote!(None)
             }
             Value::NbtCompound(s) => {
                 assert_eq!(s, "{}");
                 quote!(valence_nbt::Compound::default())
             }
-            Value::Particle(p) => {
-                let variant = ident(p.to_pascal_case());
-                quote!(valence_protocol::packets::play::particle_s2c::Particle::#variant)
-            }
+            Value::Particle(p) => match p.to_pascal_case().as_str() {
+                // TODO: fix this, now an entyity has this as the default, so we need to extract
+                // the data here too somehow
+                "EntityEffect" => {
+                    quote!(valence_protocol::packets::play::level_particles_s2c::Particle::EntityEffect { color: 0 })
+                }
+                other => {
+                    let variant = ident(other);
+                    quote!(valence_protocol::packets::play::level_particles_s2c::Particle::#variant)
+                }
+            },
+            Value::ParticleList(_) => quote!(Vec::new()),
             Value::VillagerData {
                 typ,
                 profession,
@@ -243,21 +292,89 @@ impl Value {
                 quote!(crate::Pose::#variant)
             }
             Value::CatVariant(c) => {
-                let variant = ident(c.to_pascal_case());
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
                 quote!(crate::CatKind::#variant)
             }
-            Value::FrogVariant(f) => {
-                let variant = ident(f.to_pascal_case());
+            Value::CowVariant(c) => {
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
+                quote!(crate::CowKind::#variant)
+            }
+            Value::WolfVariant(c) => {
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
+                quote!(crate::WolfKind::#variant)
+            }
+            Value::WolfSoundVariant(c) => {
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
+                quote!(crate::WolfSoundKind::#variant)
+            }
+            Value::FrogVariant(c) => {
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
                 quote!(crate::FrogKind::#variant)
             }
-            Value::OptionalGlobalPos(_) => quote!(()),
-            Value::PaintingVariant(p) => {
-                let variant = ident(p.to_pascal_case());
-                quote!(crate::PaintingKind::#variant)
+            Value::PigVariant(c) => {
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
+                quote!(crate::PigKind::#variant)
             }
+            Value::ChickenVariant(c) => {
+                let stripped_variant = c.trim_start_matches("minecraft");
+                let variant = ident(stripped_variant.to_pascal_case());
+                quote!(crate::ChickenKind::#variant)
+            }
+            Value::OptionalGlobalPos(gp) => {
+                assert!(gp.is_none());
+                quote!(None)
+            }
+            Value::PaintingVariant(p) => match p {
+                PaintingVariantValue::Identifier(painting) => {
+                    let stripped_variant = painting.trim_start_matches("minecraft:");
+                    let variant = ident(stripped_variant.to_pascal_case());
+                    quote!(valence_binary::IdOr::id(crate::PaintingKind::#variant as i32))
+                }
+                PaintingVariantValue::Inline(inline) => {
+                    let PaintingVariantInline {
+                        width,
+                        height,
+                        asset_id,
+                        title,
+                        author,
+                    } = inline;
+
+                    let title = if let Some(title) = title {
+                        quote!(Some(#title.into()))
+                    } else {
+                        quote!(None)
+                    };
+
+                    let author = if let Some(author) = author {
+                        quote!(Some(#author.into()))
+                    } else {
+                        quote!(None)
+                    };
+
+                    quote! {
+                        valence_binary::IdOr::inline(crate::PaintingVariantDefinition {
+                            width: #width,
+                            height: #height,
+                            asset_id: #asset_id.to_owned(),
+                            title: #title,
+                            author: #author,
+                        })
+                    }
+                }
+            },
             Value::SnifferState(s) => {
                 let state = ident(s.to_pascal_case());
                 quote!(crate::SnifferState::#state)
+            }
+            Value::ArmadilloState(s) => {
+                let state = ident(s.to_pascal_case());
+                quote!(crate::ArmadilloState::#state)
             }
             Value::Vector3f { x, y, z } => quote!(valence_math::Vec3::new(#x, #y, #z)),
             Value::Quaternionf { x, y, z, w } => quote! {
@@ -268,8 +385,21 @@ impl Value {
 
     fn encodable_expr(&self, self_lvalue: TokenStream) -> TokenStream {
         match self {
+            Value::Long(_) => quote!(valence_protocol::VarLong(#self_lvalue)),
             Value::Integer(_) => quote!(VarInt(#self_lvalue)),
             Value::OptionalInt(_) => quote!(OptionalInt(#self_lvalue)),
+            Value::OptionalBlockState(_) => quote!(OptionalBlockState(#self_lvalue)),
+            Value::PaintingVariant(_) => quote!(PaintingVariant(&#self_lvalue)),
+            Value::TextComponent(_) => {
+                quote!(valence_binary::TextComponent::from(#self_lvalue.clone()))
+            }
+            Value::OptionalTextComponent(_) => {
+                quote!(
+                    #self_lvalue
+                        .clone()
+                        .map(valence_binary::TextComponent::from)
+                )
+            }
             _ => quote!(&#self_lvalue),
         }
     }
@@ -302,6 +432,7 @@ fn build_entities() -> anyhow::Result<TokenStream> {
     let mut modules = TokenStream::new();
     let mut systems = TokenStream::new();
     let mut system_names = vec![];
+    let mut derived_system_names = vec![];
 
     for (entity_name, entity) in entities.clone() {
         let entity_name_ident = ident(&entity_name);
@@ -634,8 +765,8 @@ fn build_entities() -> anyhow::Result<TokenStream> {
         }
     }]);
 
-    system_names.push(quote!(update_living_and_player_absorption));
-    system_names.push(quote!(update_living_attributes));
+    derived_system_names.push(quote!(update_living_and_player_absorption));
+    derived_system_names.push(quote!(update_living_attributes));
 
     #[derive(Deserialize, Debug)]
     struct MiscEntityData {
@@ -722,6 +853,10 @@ fn build_entities() -> anyhow::Result<TokenStream> {
 
         fn add_tracked_data_systems(app: &mut App) {
             #systems
+
+            #(
+                app.add_systems(PostUpdate, #derived_system_names.in_set(UpdateDerivedEntityDataSet));
+            )*
 
             #(
                 app.add_systems(

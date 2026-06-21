@@ -6,8 +6,10 @@ use packet_inspector::Proxy;
 use tokio::task::JoinHandle;
 
 use crate::shared_state::{Event, SharedState};
+use crate::utils;
 
 mod connection;
+mod failed_packets;
 mod filter;
 mod hex_viewer;
 mod packet_list;
@@ -64,7 +66,10 @@ impl GuiApp {
         let [a, b] = tree.main_surface_mut().split_right(
             NodeIndex::root(),
             0.3,
-            vec![Box::new(packet_list::PacketList::new())],
+            vec![
+                Box::new(packet_list::PacketList::new()),
+                Box::new(failed_packets::FailedPackets::new()),
+            ],
         );
 
         let [_, _] =
@@ -164,7 +169,15 @@ fn handle_events(state: Arc<RwLock<SharedState>>) {
 
                         while let Ok(packet) = receiver.recv_async().await {
                             let state = state.read().unwrap();
-                            state.packets.write().unwrap().push(packet);
+                            state.packets.write().unwrap().push(packet.clone());
+                            if let Err(e) = utils::packet_to_string(&packet) {
+                                println!("Could not decode {}. Err: {:#?}", packet.name, e);
+                                state
+                                    .failed_packets
+                                    .write()
+                                    .unwrap()
+                                    .push((packet, state.packets.read().unwrap().len() - 1));
+                            }
                             state.send_event(Event::PacketReceived);
                         }
 

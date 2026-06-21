@@ -1,0 +1,15 @@
+use valence_binary::{Decode, Encode, VarInt, VarLong};
+
+use crate::Packet;
+
+#[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
+pub struct InitializeBorderS2c {
+    pub x: f64,
+    pub z: f64,
+    pub old_diameter: f64,
+    pub new_diameter: f64,
+    pub duration_millis: VarLong,
+    pub portal_teleport_boundary: VarInt,
+    pub warning_blocks: VarInt,
+    pub warning_time: VarInt,
+}
