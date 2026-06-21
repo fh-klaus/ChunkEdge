@@ -10,7 +10,7 @@ use chunkedge_server::entity::EntityLayerId;
 use chunkedge_server::layer::UpdateLayersPreClientSet;
 use chunkedge_server::protocol::packets::play::set_display_objective_s2c::ScoreboardPosition;
 use chunkedge_server::protocol::packets::play::set_objective_s2c::{
-    ObjectiveMode, ObjectiveNumberFormat, ObjectiveRenderType,
+    ObjectiveMode, ObjectiveRenderType,
 };
 use chunkedge_server::protocol::packets::play::{
     ResetScoreS2c, SetDisplayObjectiveS2c, SetObjectiveS2c, SetScoreS2c,

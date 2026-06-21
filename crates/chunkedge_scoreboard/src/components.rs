@@ -4,7 +4,7 @@ use bevy_ecs::prelude::*;
 use chunkedge_server::entity::EntityLayerId;
 use chunkedge_server::protocol::packets::play::set_display_objective_s2c::ScoreboardPosition;
 use chunkedge_server::protocol::packets::play::set_objective_s2c::{
-    ObjectiveNumberFormat, ObjectiveRenderType,
+    NumberFormat, ObjectiveRenderType,
 };
 use chunkedge_server::text::IntoText;
 use chunkedge_server::Text;
@@ -39,6 +39,10 @@ impl Objective {
 /// is used.
 #[derive(Debug, Clone, PartialEq, Component, Deref, DerefMut)]
 pub struct ObjectiveDisplay(pub Text);
+
+/// Defines how the scores number is displayed.
+#[derive(Component, Clone, PartialEq, Debug, Default)]
+pub struct ObjectiveNumberFormat(pub Option<NumberFormat<'static>>);
 
 /// A mapping of keys to their scores.
 #[derive(Debug, Clone, Component, Default)]
