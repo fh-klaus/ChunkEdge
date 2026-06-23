@@ -386,7 +386,7 @@ fn init_clients(
         mut health,
     ) in &mut clients
     {
-        let layer = main_layers.single();
+        let layer = main_layers.single().unwrap();
 
         layer_id.0 = layer;
         visible_chunk_layer.0 = layer;
@@ -436,12 +436,12 @@ impl Team {
 fn digging(
     mut clients: Query<(&GameMode, &Team, Entity, &mut Client, &mut Inventory)>,
     mut layers: Query<&mut ChunkLayer>,
-    mut events: EventReader<DiggingEvent>,
+    mut events: MessageReader<DiggingEvent>,
     mut commands: Commands,
     globals: Res<CtfGlobals>,
     mut flag_manager: ResMut<FlagManager>,
 ) {
-    let mut layer = layers.single_mut();
+    let mut layer = layers.single_mut().unwrap();
 
     for event in events.read() {
         let Ok((game_mode, team, ent, mut client, mut inv)) = clients.get_mut(event.client) else {
@@ -457,21 +457,17 @@ fn digging(
             let is_flag = event.position == globals.red_flag || event.position == globals.blue_flag;
 
             match (team, block.state) {
-                (Team::Blue, BlockState::RED_WOOL) => {
-                    if event.position == globals.red_flag {
-                        commands.entity(event.client).insert(HasFlag(Team::Red));
-                        client.send_chat_message("You have the flag!".italic());
-                        flag_manager.red = Some(ent);
-                        return;
-                    }
+                (Team::Blue, BlockState::RED_WOOL) if event.position == globals.red_flag => {
+                    commands.entity(event.client).insert(HasFlag(Team::Red));
+                    client.send_chat_message("You have the flag!".italic());
+                    flag_manager.red = Some(ent);
+                    return;
                 }
-                (Team::Red, BlockState::BLUE_WOOL) => {
-                    if event.position == globals.blue_flag {
-                        commands.entity(event.client).insert(HasFlag(Team::Blue));
-                        client.send_chat_message("You have the flag!".italic());
-                        flag_manager.blue = Some(ent);
-                        return;
-                    }
+                (Team::Red, BlockState::BLUE_WOOL) if event.position == globals.blue_flag => {
+                    commands.entity(event.client).insert(HasFlag(Team::Blue));
+                    client.send_chat_message("You have the flag!".italic());
+                    flag_manager.blue = Some(ent);
+                    return;
                 }
                 _ => {}
             }
@@ -507,9 +503,9 @@ fn place_blocks(
     mut clients: Query<(&mut Inventory, &GameMode, &HeldItem, &Hitbox)>,
     mut layers: Query<&mut ChunkLayer>,
     globals: Res<CtfGlobals>,
-    mut events: EventReader<InteractBlockEvent>,
+    mut events: MessageReader<InteractBlockEvent>,
 ) {
-    let mut layer = layers.single_mut();
+    let mut layer = layers.single_mut().unwrap();
 
     for event in events.read() {
         let Ok((mut inventory, game_mode, held, hitbox)) = clients.get_mut(event.client) else {
@@ -643,7 +639,7 @@ fn do_team_selector_portals(
             let chat_text: Text = "You are on team ".into_text() + team.team_text() + "!";
             client.send_chat_message(chat_text);
 
-            let main_layer = main_layers.single();
+            let main_layer = main_layers.single().unwrap();
             ent_layers.as_mut().0.remove(&main_layer);
             for t in Team::iter() {
                 let enemy_layer = ctf_layers.enemy_layers[&t];
@@ -776,9 +772,11 @@ fn update_flag_visuals(
 
     layers
         .single_mut()
+        .unwrap()
         .set_block(globals.red_flag, red_flag_block);
     layers
         .single_mut()
+        .unwrap()
         .set_block(globals.blue_flag, blue_flag_block);
 }
 
@@ -949,8 +947,8 @@ struct CombatQuery {
 fn handle_combat_events(
     server: Res<Server>,
     mut clients: Query<CombatQuery>,
-    mut sprinting: EventReader<SprintEvent>,
-    mut interact_entity: EventReader<InteractEntityEvent>,
+    mut sprinting: MessageReader<SprintEvent>,
+    mut interact_entity: MessageReader<InteractEntityEvent>,
     clones: Query<&ClonedEntity>,
 ) {
     for &SprintEvent { client, state } in sprinting.read() {
@@ -967,8 +965,7 @@ fn handle_combat_events(
     {
         let true_victim_ent = clones
             .get(victim_client)
-            .map(|cloned| cloned.0)
-            .unwrap_or(victim_client);
+            .map_or(victim_client, |cloned| cloned.0);
         let Ok([mut attacker, mut victim]) =
             clients.get_many_mut([attacker_client, true_victim_ent])
         else {
@@ -1044,7 +1041,7 @@ fn necromancy(
         &Team,
         &mut Health,
     )>,
-    mut events: EventReader<RequestRespawnEvent>,
+    mut events: MessageReader<RequestRespawnEvent>,
     layers: Query<Entity, (With<ChunkLayer>, With<EntityLayer>)>,
 ) {
     for event in events.read() {
@@ -1054,7 +1051,7 @@ fn necromancy(
             respawn_pos.pos = team.spawn_pos().into();
             health.0 = PLAYER_MAX_HEALTH;
 
-            let main_layer = layers.single();
+            let main_layer = layers.single().unwrap();
 
             // this gets the client to get rid of the respawn screen
             visible_chunk_layer.0 = main_layer;
@@ -1069,7 +1066,7 @@ fn update_scoreboard(
     if !score.is_changed() {
         return;
     }
-    let mut s = objectives.single_mut();
+    let mut s = objectives.single_mut().unwrap();
     s.insert("Red", *score.scores.get(&Team::Red).unwrap_or(&0) as i32);
     s.insert("Blue", *score.scores.get(&Team::Blue).unwrap_or(&0) as i32);
 }
